@@ -25,7 +25,7 @@ FastAPI-nodb/
 ├── app/
 │   ├── __init__.py       # Makes 'app' a Python package
 │   ├── main.py           # Contains API routes and FastAPI app
-│   ├── schemas.py        # Pydantic models for request & response validation
+│   ├── models.py        # Pydantic models for request & response validation
 │   └── services.py       # In-memory data store and business logic
 ├── screenshots/          # Folder containing Swagger UI test screenshots
 ├── requirements.txt      # Project dependencies
@@ -37,7 +37,7 @@ FastAPI-nodb/
 
 ## Data Models & Schemas
 
-The schemas are defined using Pydantic in `app/schemas.py`:
+The schemas are defined using Pydantic in `app/models.py`:
 
 - **`WorkMode` (Enum):**
   - `"WFH"` (Work From Home)
@@ -93,7 +93,6 @@ The application will be running at: `http://127.0.0.1:8001`
 ### 5. Interactive API Documentation
 Open your browser and navigate to:
 - **Swagger UI:** [http://127.0.0.1:8001/docs](http://127.0.0.1:8001/docs)
-- **ReDoc:** [http://127.0.0.1:8001/redoc](http://127.0.0.1:8001/redoc)
 
 You can test all endpoints directly using the **"Try it out"** button in Swagger UI.
 
@@ -161,8 +160,29 @@ You can test all endpoints directly using the **"Try it out"** button in Swagger
 
 ---
 
-## Business Logic & Rules
+## Key Learnings
 
-- **Unique Email:** No two employees can share the same email address. The API returns a `400 Bad Request` if a duplicate email is entered.
-- **Auto ID:** New employee IDs are sequentially generated starting from 1.
-- **In-Memory Storage:** Records are stored in a Python list (`employee_records`) while the server is active.
+- Learn and Understanding how APIs work and testing endpoints using Swagger UI (`/docs`).
+- Using HTTP methods: `GET` (view), `POST` (add), `PUT` (update), and `DELETE` (remove).
+- Validating inputs (like email format and required fields) using Pydantic.
+- Using proper status codes like `200`, `201`, `400`, and `404`.
+- Managing and storing data using Python lists and dictionaries.
+
+---
+
+## Difficulties Faced
+
+- Understanding when to use URL path (like `/employees/1`) vs. JSON body.
+- Keeping `id` and `created_at` safe from being overwritten during updates.
+- Understanding `422` error when input data did not match the model datatypes.
+- Fixing the `Address already in use` error when restarting Uvicorn.
+
+---
+
+## Assumptions Made
+
+- Data is stored in memory, so it resets when the server restarts.(NO Database)
+- No two employees can have the same email.
+- Employee IDs start from 1 and increase sequentially.(auto increment)
+- Work mode can only be `"WFH"` or `"WFO"`.
+- Newly created employees are active (`is_active = True`) by default.
