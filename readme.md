@@ -120,8 +120,8 @@ You can test all endpoints directly using the **"Try it out"** button in Swagger
 **Request Body:**
 ```json
 {
-  "name": "Alex Johnson",
-  "email": "alex.johnson@example.com",
+  "name": "Username",
+  "email": "user1@example.com",
   "department": "Engineering",
   "primary_skill": "Python",
   "location": "Bangalore",
@@ -133,8 +133,8 @@ You can test all endpoints directly using the **"Try it out"** button in Swagger
 ```json
 {
   "id": 1,
-  "name": "Alex Johnson",
-  "email": "alex.johnson@example.com",
+  "name": "Username",
+  "email": "user1@example.com",
   "department": "Engineering",
   "primary_skill": "Python",
   "location": "Bangalore",
@@ -149,8 +149,8 @@ You can test all endpoints directly using the **"Try it out"** button in Swagger
 **Request Body:**
 ```json
 {
-  "name": "Alex Johnson",
-  "email": "alex.johnson@example.com",
+  "name": "Alex",
+  "email": "user1@example.com",
   "department": "Cloud Platforms",
   "primary_skill": "FastAPI",
   "location": "Hyderabad",
