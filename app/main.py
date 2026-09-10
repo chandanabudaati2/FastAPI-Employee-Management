@@ -1,4 +1,3 @@
-# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, HTTPException, Path, status
 from app.models import EmployeeInput, EmployeeEdit, EmployeeDetails
 from app.services import (
