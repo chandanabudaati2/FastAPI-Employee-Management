@@ -1,43 +1,18 @@
-from datetime import datetime
-from enum import Enum
-from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String
+from sqlalchemy.sql import func
+from app.database import Base
+from app.schemas import WorkMode
 
 
-# Enum for work mode options
-class WorkMode(str, Enum):
-    WFH = "WFH"
-    WFO = "WFO"
+class Employee(Base):
+    __tablename__ = "employees"
 
-
-# Schema for creating a new employee
-class EmployeeInput(BaseModel):
-    name: str = Field(..., min_length=1)
-    email: EmailStr
-    department: str = Field(..., min_length=1)
-    primary_skill: str = Field(..., min_length=1)
-    location: str = Field(..., min_length=1)
-    work_mode: WorkMode
-
-
-# Schema for updating an existing employee
-class EmployeeEdit(BaseModel):
-    name: str = Field(..., min_length=1)
-    email: EmailStr
-    department: str = Field(..., min_length=1)
-    primary_skill: str = Field(..., min_length=1)
-    location: str = Field(..., min_length=1)
-    work_mode: WorkMode
-    is_active: bool = True
-
-
-# Schema for returning employee details
-class EmployeeDetails(BaseModel):
-    id: int
-    name: str
-    email: EmailStr
-    department: str
-    primary_skill: str
-    location: str
-    work_mode: WorkMode
-    is_active: bool
-    created_at: datetime
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    department = Column(String(100), nullable=False)
+    primary_skill = Column(String(100), nullable=False)
+    location = Column(String(100), nullable=False)
+    work_mode = Column(Enum(WorkMode), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)

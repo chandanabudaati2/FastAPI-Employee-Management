@@ -1,5 +1,9 @@
 from datetime import datetime
-from app.models import EmployeeInput, EmployeeEdit
+from app.schemas import EmployeeEdit
+from app.schemas import EmployeeInput
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+from app import models, schemas
 
 # Simple list to store all employee records in memory
 employee_records = []
@@ -9,14 +13,13 @@ emp_id_counter = 1
 
 
 # Helper function to check if email is already taken
-def is_email_taken(email_to_check: str, current_emp_id: int = None):
-    for emp in employee_records:
-        if emp["email"].lower() == email_to_check.lower():
-            if current_emp_id is not None and emp["id"] == current_emp_id:
-                continue
-            return True
-    return False
-
+def is_email_taken(db: Session, email_to_check: str, current_emp_id: int | None = None) -> bool:
+    query = db.query(models.Employee).filter(
+        func.lower(models.Employee.email) == email_to_check.strip().lower()
+    )
+    if current_emp_id is not None:
+        query = query.filter(models.Employee.id != current_emp_id)
+    return query.first() is not None
 
 # Function to add a new employee
 def save_employee(emp_data: EmployeeInput):

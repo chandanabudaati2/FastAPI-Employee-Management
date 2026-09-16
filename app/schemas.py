@@ -20,34 +20,19 @@ class EmployeeBase(BaseModel):
     # Reject whitespace-only values
     @field_validator("name", "department", "primary_skill", "location")
     @classmethod
-    def reject_empty_or_whitespace(cls, value: str) -> str:
+    def reject_empty_or_whitespace(cls, value: str):
         if not value or not value.strip():
             raise ValueError("Field cannot be empty or contain only whitespace.")
         return value.strip()
 
 
-# Schema for creating a new employee
+# Schema for creating a new employee POST /employees
 class EmployeeInput(EmployeeBase):
     pass
 
-# Schema for updating an existing employee
+# Schema for updating an existing employee PUT /employees/{id}
 class EmployeeEdit(BaseModel):
-    name: str = Field(..., min_length=1)
-    email: EmailStr
-    department: str = Field(..., min_length=1)
-    primary_skill: str = Field(..., min_length=1)
-    location: str = Field(..., min_length=1)
-    work_mode: WorkMode
     is_active: bool = True
-
-    # Reject whitespace-only values
-    @field_validator("name", "department", "primary_skill", "location")
-    @classmethod
-    def reject_empty_or_whitespace(cls, value: str) -> str:
-        if not value or not value.strip():
-            raise ValueError("Field cannot be empty or contain only whitespace.")
-        return value.strip()
-
 
 # Schema for returning employee details
 class EmployeeDetails(BaseModel):
