@@ -1,188 +1,128 @@
 # Employee Management API
 
-Hi! This is my first backend project using **FastAPI** and **Python 3.12**. 
-
-It is a REST API to manage employee details (Create, Read, Update, Delete). 
-All data is stored temporarily in a Python list in memory, so no database setup is required.
-
---- 
+A REST API to manage employee records built using **FastAPI**, **SQLAlchemy**, and **MySQL**. Data is permanently stored in a database and persists across server restarts.
 
 ## Technologies Used
 
 - **Language:** Python 3.12
 - **Framework:** FastAPI
-- **Data Validation:** Pydantic v2
+- **Database:** MySQL 8+
+- **ORM:** SQLAlchemy 2.0
+- **Driver:** PyMySQL & Cryptography
+- **Validation:** Pydantic v2
 - **Server:** Uvicorn
-- **Documentation:** Swagger UI (built-in at `/docs`)
-- **Editor:** Visual Studio Code
 
----
 
 ## Project Structure
 
 ```text
-FastAPI-nodb/
+FastAPI-EmpManagement/
 ├── app/
-│   ├── __init__.py       # Makes 'app' a Python package
-│   ├── main.py           # Contains API routes and FastAPI app
-│   ├── models.py        # Pydantic models for request & response validation
-│   └── services.py       # In-memory data store and business logic
-├── screenshots/          # Folder containing Swagger UI test screenshots
-├── requirements.txt      # Project dependencies
-├── .gitignore            # Files ignored by Git
-└── README.md             # Project documentation
+│   ├── __init__.py
+│   ├── database.py       # Engine, session, and get_db dependency
+│   ├── models.py         # SQLAlchemy Employee table model
+│   ├── schemas.py        # Pydantic schemas for request/response validation
+│   ├── services.py       # Database CRUD operations
+│   └── main.py           # FastAPI routes
+├── screenshots/          # Swagger UI test screenshots
+├── .env.example          # Environment template
+├── .gitignore
+├── requirements.txt
+└── README.md
 ```
+
+## Database Setup & Configuration
+
+### 1. Create MySQL Database
+Log in to MySQL:
+```bash
+mysql -u root -p
+```
+Run this command:
+```sql
+CREATE DATABASE IF NOT EXISTS employee_db;
+EXIT;
+```
+
+### 2. Configure `.env`
+Create a `.env` file in the project root:
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=employee_db
+```
+
+## How SQLAlchemy Connects to MySQL
+
+- **Connection URL:** Uses the format `mysql+pymysql://<user>:<password>@<host>:<port>/<db_name>`.
+- **Engine & Session:** `create_engine` creates the connection, and `sessionmaker` generates sessions.
+- **Session Lifecycle (`get_db`):** Uses a generator (`yield`) as a FastAPI dependency. A session is created for each request and safely closed in a `finally` block.
+- **Auto Table Creation:** `models.Base.metadata.create_all(bind=engine)` creates the `employees` table automatically when the app starts.
 
 ---
 
-## Data Models & Schemas
+## How to Run
 
-The schemas are defined using Pydantic in `app/models.py`:
-
-- **`WorkMode` (Enum):**
-  - `"WFH"` (Work From Home)
-  - `"WFO"` (Work From Office)
-
-- **`EmployeeInput` (for creating employees):**
-  - `name`: string (minimum 1 character)
-  - `email`: valid corporate email string
-  - `department`: string
-  - `primary_skill`: string
-  - `location`: string
-  - `work_mode`: `"WFH"` or `"WFO"`
-
-- **`EmployeeEdit` (for updating employees):**
-  - Same fields as `EmployeeInput` plus:
-  - `is_active`: boolean (defaults to `True`)
-
-- **`EmployeeDetails` (API response model):**
-  - All employee fields plus:
-  - `id`: unique integer auto-generated starting from 1
-  - `created_at`: datetime timestamp
-
----
-
-## How to Run the Project
-
-### 1. Create a virtual environment
-```bash
-python3 -m venv venv
-```
-
-### 2. Activate the virtual environment
-- **On macOS / Linux:**
-  ```bash
-  source venv/bin/activate
-  ```
-- **On Windows:**
-  ```bash
-  venv\Scripts\activate
-  ```
-
-### 3. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Run the server
-```bash
-uvicorn app.main:app --reload --port 8001
-```
-The application will be running at: `http://127.0.0.1:8001`
-
-### 5. Interactive API Documentation
-Open your browser and navigate to:
-- **Swagger UI:** [http://127.0.0.1:8001/docs](http://127.0.0.1:8001/docs)
-
-You can test all endpoints directly using the **"Try it out"** button in Swagger UI.
+1. **Activate Virtual Environment:**
+   ```bash
+   source venv/bin/activate
+   ```
+2. **Install Dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. **Start the Server:**
+   ```bash
+   uvicorn app.main:app --reload --port 8001
+   ```
+4. **Open Swagger Documentation:**
+   Go to [http://127.0.0.1:8001/docs](http://127.0.0.1:8001/docs) to test the endpoints.
 
 ---
 
 ## API Endpoints
 
-| HTTP Method | Endpoint | Description | Status Code |
+| Method | Endpoint | Description | Status Codes |
 |---|---|---|---|
-| `GET` | `/` | Home / Welcome message with quick links | `200 OK` |
-| `GET` | `/health` | Check if the server is running | `200 OK` |
-| `POST` | `/employees` | Create a new employee | `201 Created` |
-| `GET` | `/employees` | Get list of all employees | `200 OK` |
-| `GET` | `/employees/{id}` | Get details of a single employee by ID | `200 OK` / `404 Not Found` |
-| `PUT` | `/employees/{id}` | Update an existing employee's details | `200 OK` / `400 Bad Request` / `404 Not Found` |
-| `DELETE` | `/employees/{id}` | Delete an employee by ID | `200 OK` / `404 Not Found` |
-
----
-
-## Example Payloads
-
-### 1. Create Employee (`POST /employees`)
-
-**Request Body:**
-```json
-{
-  "name": "Username",
-  "email": "user1@example.com",
-  "department": "Engineering",
-  "primary_skill": "Python",
-  "location": "Bangalore",
-  "work_mode": "WFH"
-}
-```
-
-**Response (`201 Created`):**
-```json
-{
-  "id": 1,
-  "name": "Username",
-  "email": "user1@example.com",
-  "department": "Engineering",
-  "primary_skill": "Python",
-  "location": "Bangalore",
-  "work_mode": "WFH",
-  "is_active": true,
-  "created_at": "2026-09-10T14:00:00.000000"
-}
-```
-
-### 2. Update Employee (`PUT /employees/1`)
-
-**Request Body:**
-```json
-{
-  "name": "Alex",
-  "email": "user1@example.com",
-  "department": "Cloud Platforms",
-  "primary_skill": "FastAPI",
-  "location": "Hyderabad",
-  "work_mode": "WFO",
-  "is_active": true
-}
-```
+| `GET` | `/` | Welcome message | `200` |
+| `GET` | `/health` | Health check | `200` |
+| `POST` | `/employees` | Add new employee | `201`, `400`, `422` |
+| `GET` | `/employees` | List all employees | `200` |
+| `GET` | `/employees/{id}` | Get employee by ID | `200`, `404` |
+| `PUT` | `/employees/{id}` | Update employee details | `200`, `400`, `404` |
+| `DELETE` | `/employees/{id}` | Delete employee | `200`, `404` |
 
 ---
 
 ## Key Learnings
 
-- Learn and Understanding how APIs work and testing endpoints using Swagger UI (`/docs`).
-- Using HTTP methods: `GET` (view), `POST` (add), `PUT` (update), and `DELETE` (remove).
-- Validating inputs (like email format and required fields) using Pydantic.
-- Using proper status codes like `200`, `201`, `400`, and `404`.
-- Managing and storing data using Python lists and dictionaries.
+- **Database Sessions:** How to use FastAPI's `Depends(get_db)` to provide a database session per request and ensure it always closes.
+- **Transaction Rollback:** Wrapping database operations in `try-except` blocks and using `db.rollback()` on error to keep the session healthy.
+- **Pydantic v2 ORM Mode:** Using `model_config = ConfigDict(from_attributes=True)` so Pydantic can read data directly from SQLAlchemy objects.
+- **Separation of Concerns:** Keeping database tables in `models.py` separate from API request/response schemas in `schemas.py`.
 
 ---
 
 ## Difficulties Faced
 
-- Understanding when to use URL path (like `/employees/1`) vs. JSON body.
-- Keeping `id` and `created_at` safe from being overwritten during updates.
-- Understanding `422` error when input data did not match the model datatypes.
-- Fixing the `Address already in use` error when restarting Uvicorn.
+- **FastAPI Dependency Error:** Using `db: Session = get_db()` caused an error because FastAPI treated it as a regular field. Resolved by using `db: Session = Depends(get_db)`.
+- **PUT Request Schema in Swagger:** Initially, the PUT API did not show fields to edit in Swagger UI. Fixed by making `EmployeeEdit` inherit from `EmployeeBase`.
+```bash
+FastAPIError: Invalid args for response field! Hint: check that Session is a valid Pydantic field type.
+```
+- **Case-Insensitive Email Check:** Used `func.lower(Employee.email) == email.lower()` to ensure emails like `TEST@EMAIL.COM` and `test@email.com` are treated as duplicates.
+- **Preserving `created_at`:** Handled updates so that `created_at` remains unchanged when an employee's details are edited.
+- **Git Ignore Fix:** Fixed `.gitignore` from `.env/` to `.env` so the configuration file is properly ignored by Git.
+- **MySQL Authentication & Permission Errors:** Encountered access issues connecting to the database (`Access denied for user 'root'@'localhost'` or missing `caching_sha2_password` plugin). Resolved by installing the `cryptography` package (required for MySQL 8 default authentication) and verifying database credentials in the `.env` file.
 
 ---
 
 ## Assumptions Made
 
-- Data is stored in memory, so it resets when the server restarts.(NO Database)
-- No two employees can have the same email.
-- Employee IDs start from 1 and increase sequentially.(auto increment)
-- Work mode can only be `"WFH"` or `"WFO"`.
-- Newly created employees are active (`is_active = True`) by default.
+- Database tables are created on startup without migration tools like Alembic.
+- Email uniqueness is case-insensitive.
+- New employees are active (`is_active = True`) by default.
+- MySQL 8 default authentication is supported via the `cryptography` package.
+```

@@ -31,7 +31,7 @@ class EmployeeInput(EmployeeBase):
     pass
 
 # Schema for updating an existing employee PUT /employees/{id}
-class EmployeeEdit(BaseModel):
+class EmployeeEdit(EmployeeBase):
     is_active: bool = True
 
 # Schema for returning employee details
