@@ -47,11 +47,11 @@ EXIT;
 ### 2. Configure `.env`
 Create a `.env` file in the project root:
 ```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_mysql_password
-DB_NAME=employee_db
+DATABASE_HOST=localhost
+DATABASE_PORT=3306
+DATABASE_USER=root
+DATABASE_PASSWORD=YOUR_MYSQL_PASSWORD
+DATABASE_NAME=employee_db
 ```
 
 ## How SQLAlchemy Connects to MySQL
