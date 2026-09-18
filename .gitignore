@@ -2,7 +2,7 @@
 venv/
 .venv/
 .env
-
+test_env/
 # Python Cache & Bytecode
 __pycache__/
 *.py[cod]

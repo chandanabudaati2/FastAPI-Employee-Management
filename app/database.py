@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import URL, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Load environment variables from .env
@@ -12,8 +12,15 @@ DATABASE_USER = os.getenv("DATABASE_USER", "root")
 DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD", "")
 DATABASE_NAME = os.getenv("DATABASE_NAME", "employee_db")
 
-# MySQL connection string using pymysql
-DATABASE_URL = f"mysql+pymysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
+# Use URL.create() so passwords with '@', ':', or special characters are safely escaped
+DATABASE_URL = URL.create(
+    drivername="mysql+pymysql",
+    username=DATABASE_USER,
+    password=DATABASE_PASSWORD,
+    host=DATABASE_HOST,
+    port=int(DATABASE_PORT),
+    database=DATABASE_NAME,
+)
 
 # Create SQLAlchemy engine
 engine = create_engine(

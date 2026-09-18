@@ -1,9 +1,11 @@
 from datetime import datetime
-from app.schemas import EmployeeEdit
-from app.schemas import EmployeeInput
+from app.schemas import EmployeeEdit, EmployeeInput
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app import models, schemas
+from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
 
 # Helper function to check if email is already taken & case-sensitive
 def is_email_taken(db: Session, email_to_check: str, current_emp_id: int | None = None):
@@ -30,9 +32,18 @@ def save_employee(db: Session, emp_data: schemas.EmployeeInput) -> models.Employ
         db.commit()
         db.refresh(new_emp)
         return new_emp
-    except Exception as e:
+    except IntegrityError:
         db.rollback()
-        raise e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Email '{emp_data.email}' is already taken. Please use a unique email address."
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error occurred. Please try again later."
+        )
 
 
 # Function to get all employees
@@ -69,9 +80,18 @@ def update_employee_record(db: Session, emp_id: int, updated_info: schemas.Emplo
         db.commit()
         db.refresh(emp)
         return emp
-    except Exception as e:
+    except IntegrityError:
         db.rollback()
-        raise e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Email '{updated_info.email}' is already taken. Please use a unique email address.",
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error occurred. Please try again later.",
+        )
 
 
 # Function to delete employee by ID
