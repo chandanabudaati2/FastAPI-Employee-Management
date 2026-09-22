@@ -47,8 +47,50 @@ def save_employee(db: Session, emp_data: schemas.EmployeeInput) -> models.Employ
 
 
 # Function to get all employees
-def fetch_all_employees(db:Session):
-    return db.query(models.Employee).all()
+# Function to get employees with search, filters, and pagination
+def fetch_employees_paginated(
+    db: Session, search: str | None = None, department: str | None = None,
+    work_mode: schemas.WorkMode | None = None, is_active: bool | None = None,
+    limit: int = 10, offset: int = 0,
+):
+    query = db.query(models.Employee)
+
+    # 1. Partial case-insensitive search by employee name
+    if search and search.strip():
+        query = query.filter(
+            func.lower(models.Employee.name).like(f"%{search.strip().lower()}%")
+        )
+
+    # 2. Filter by department (exact match, case-insensitive or trimmed)
+    if department and department.strip():
+        query = query.filter(models.Employee.department == department.strip())
+
+    # 3. Filter by work mode (WFH or WFO)
+    if work_mode is not None:
+        query = query.filter(models.Employee.work_mode == work_mode)
+
+    # 4. Filter by active status (True or False)
+    if is_active is not None:
+        query = query.filter(models.Employee.is_active == is_active)
+
+    # 5. Count total matching records BEFORE applying offset and limit
+    total = query.count()
+
+    # 6. Order by ID ascending, then apply offset and limit directly in SQL
+    items = (
+        query.order_by(models.Employee.id.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": items,
+    }
+
 
 
 # Function to find employee by ID

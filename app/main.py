@@ -1,5 +1,5 @@
 from app import database
-from fastapi import FastAPI, HTTPException, Path, status, Depends
+from fastapi import FastAPI, HTTPException, Path, status, Depends, Query
 from sqlalchemy.orm import Session
 from app import models, schemas, services
 from app.database import engine, get_db
@@ -52,12 +52,45 @@ def add_new_employee(emp_data: schemas.EmployeeInput, db: Session = Depends(get_
 @app.get(
     "/employees",
     tags=["Employees"],
-    response_model=list[schemas.EmployeeDetails],
+    response_model=schemas.PaginatedEmployeeResponse,
     status_code=status.HTTP_200_OK,
 )
-def get_all_employees(db: Session= Depends(get_db)):
-    return services.fetch_all_employees(db)
-
+def get_employees(
+    search: str | None = Query(
+        None,
+        description="Search by employee name (partial match, case-insensitive)",
+    ),
+    department: str | None = Query(
+        None,
+        description="Filter employees by department",
+    ),
+    work_mode: schemas.WorkMode | None = Query(
+        None,
+        description="Filter by work mode (WFH or WFO)",
+    ),
+    is_active: bool | None = Query(
+        None,
+        description="Filter by active status (true or false)",
+    ),
+    limit: int = Query(
+        10, ge=1, le=100,
+        description="Maximum records to return. Allowed values: 1-100.",
+    ),
+    offset: int = Query(
+        0, ge=0,
+        description="Number of records to skip. Must not be negative.",
+    ),
+    db: Session = Depends(get_db),
+):
+    return services.fetch_employees_paginated(
+        db=db,
+        search=search,
+        department=department,
+        work_mode=work_mode,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+    )
 
 # 5. Get a single employee by ID
 @app.get(
