@@ -46,3 +46,10 @@ class EmployeeDetails(BaseModel):
     is_active: bool
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+# Schema for paginated employee list response
+class PaginatedEmployeeResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: list[EmployeeDetails]
