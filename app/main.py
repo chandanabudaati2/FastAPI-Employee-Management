@@ -56,8 +56,8 @@ def add_new_employee(emp_data: schemas.EmployeeInput, db: Session = Depends(get_
     status_code=status.HTTP_200_OK,
 )
 def get_employees(
-    search: str | None = Query(
-        None,
+    search: str = Query(
+        None, title="Employee Name Search",
         description="Search by employee name (partial match, case-insensitive)",
     ),
     department: str | None = Query(

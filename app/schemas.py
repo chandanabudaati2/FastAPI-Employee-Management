@@ -53,3 +53,4 @@ class PaginatedEmployeeResponse(BaseModel):
     limit: int
     offset: int
     items: list[EmployeeDetails]
+    message: str | None = None

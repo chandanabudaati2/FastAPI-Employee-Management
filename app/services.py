@@ -84,11 +84,22 @@ def fetch_employees_paginated(
         .all()
     )
 
+    message = None
+    if not items:
+        message = "No employees found matching your criteria."
+    elif search:
+        message = f"Found {total} employee(s) matching your search."
+    elif department or work_mode or is_active is not None:
+        message = f"Found {total} employee(s) matching your filters."
+    else:
+        message = "Employee details fetched successfully."
+
     return {
         "total": total,
         "limit": limit,
         "offset": offset,
         "items": items,
+        "message": message,
     }
 
 
