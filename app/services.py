@@ -156,6 +156,15 @@ def remove_employee(db: Session,emp_id: int):
         db.delete(emp)
         db.commit()
         return True
-    except Exception as e:
+    except IntegrityError:
         db.rollback()
-        raise e
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete employee with ID {emp_id} because they have related records in the database.",
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="A database error occurred while deleting the employee. Please try again later.",
+        )
