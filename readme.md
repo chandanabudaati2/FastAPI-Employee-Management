@@ -31,6 +31,80 @@ FastAPI-EmpManagement/
 └── README.md
 ```
 
+## Project Architecture & File Breakdown
+
+The project follows a **layered separation-of-concerns** architecture where each file handles a distinct responsibility:
+
+### 1. `app/database.py` — Database Engine & Session Management
+* **Database Connection:** Constructs a secure MySQL connection string using `URL.create()` to safely encode special characters from environment variables.
+* **Engine with Health Checks:** Configures SQLAlchemy's `create_engine` with `pool_pre_ping=True` to automatically detect and recover from dropped or idle database connections.
+* **Session Lifecycle (`get_db`):** Implements a generator-based dependency (`yield`) that creates a unique `SessionLocal` instance for each incoming HTTP request and guarantees it is cleanly closed in a `finally` block to prevent connection leaks.
+* **Declarative Base:** Instantiates `Base = declarative_base()`, which serves as the foundation class for all ORM models.
+
+### 2. `app/models.py` — SQLAlchemy ORM Data Model
+* **Table Mapping:** Defines the `employees` table schema inside MySQL mapped to the `Employee` Python class.
+* **Columns & Constraints:**
+  * `id`: Auto-incrementing, indexed primary key.
+  * `name`, `department`, `primary_skill`, `location`: Required string fields (`nullable=False`).
+  * `email`: Indexed unique string (`unique=True`) preventing duplicate email entries at the database level.
+  * `work_mode`: Enforced by MySQL Enum constraint strictly accepting `WFH` or `WFO`.
+  * `is_active`: Boolean flag indicating employment status (defaults to `True`).
+  * `created_at`: Auto-timestamped using MySQL's server-side `func.now()`.
+
+### 3. `app/schemas.py` — Pydantic Request & Response Schemas
+* **Data Transfer Objects (DTOs):** Enforces data validation rules for incoming requests and standardizes outgoing JSON responses.
+* **WorkMode Enum:** Validates that work mode is strictly `"WFH"` or `"WFO"`.
+* **Input Sanitization:** Uses `@field_validator` to reject empty or whitespace-only strings for text fields.
+* **Request Schemas:**
+  * `EmployeeInput`: Validates payloads for creating new employees (`POST /employees`).
+  * `EmployeeEdit`: Validates payloads for editing employees (`PUT /employees/{id}`), allowing updates to `is_active`.
+* **Response Schemas:**
+  * `EmployeeDetails`: Formats single employee records with `from_attributes=True` to read directly from SQLAlchemy ORM objects.
+  * `PaginatedEmployeeResponse`: Wraps employee lists into an envelope with metadata (`total`, `limit`, `offset`, `items`, and `message`).
+
+### 4. `app/services.py` — Business Logic & Database Queries
+* **Decoupled Business Logic:** Encapsulates all database queries and transactions, keeping route handlers lean and focused solely on HTTP handling.
+* **Duplicate Prevention:** `is_email_taken()` performs case-insensitive email uniqueness checks using SQL `func.lower()`.
+* **Search, Filtering & Pagination:** `fetch_employees_paginated()` dynamically constructs SQL queries directly on the database:
+  * Case-insensitive partial name search (`LIKE %...%`).
+  * Conditional filtering by `department`, `work_mode`, and `is_active`.
+  * Accurate pre-pagination count via `query.count()`.
+  * Deterministic sorting (`id ASC`) with database-level `LIMIT` and `OFFSET`.
+* **Transaction Management & Error Handling:** Wraps database modifications in `try-except` blocks with `db.rollback()` on failures. Returns clear HTTP exceptions for duplicate emails (`400`), foreign key conflicts (`409`), or internal errors (`500`).
+
+### 5. `app/main.py` — FastAPI Routing & Controllers
+* **Application Entry Point:** Configures the FastAPI app instance, metadata, and auto-generates interactive Swagger UI docs at `/docs`.
+* **Automatic Table Creation:** Calls `models.Base.metadata.create_all(bind=engine)` on startup to ensure the database schema exists.
+* **Endpoint Routing:** Declares RESTful endpoints for root, health check, and employee CRUD operations.
+* **Parameter Validation:** Defines path constraints (`id > 0`) and query parameter validations (`limit: 1–100`, `offset >= 0`, `work_mode` Enum) to automatically return standard HTTP `422 Unprocessable Content` errors for invalid inputs.
+* **Dependency Injection:** Injects database sessions into route handlers using `Depends(get_db)`.
+
+---
+
+## Application Request Flow
+
+1. **Request & Validation:** The client sends an HTTP request to `app/main.py`. FastAPI validates query parameters and request bodies against `app/schemas.py` (returning HTTP `422` if invalid).
+2. **Session Injection:** `app/database.py` generates a clean MySQL session and injects it into the endpoint handler via `Depends(get_db)`.
+3. **Business Logic & Query:** `app/main.py` invokes `app/services.py`, which constructs an optimized SQLAlchemy query mapped to `app/models.py`.
+4. **Database Execution:** MySQL executes the query directly (`WHERE` filters, `COUNT(*)`, `ORDER BY id ASC`, `LIMIT`, `OFFSET`) and returns the rows.
+5. **Serialization & Cleanup:** Pydantic converts database models into the response schema (`PaginatedEmployeeResponse`), `get_db` automatically closes the session (`db.close()`), and the client receives the `200 OK` JSON response.
+
+---
+
+## Application Request Flow
+
+```mermaid
+flowchart LR
+    A["Client / Swagger UI"] -->|"1. HTTP Request"| B["app/main.py"]
+    B -->|"2. Validate"| C["app/schemas.py"]
+    B -->|"3. Get Session"| D["app/database.py"]
+    B -->|"4. Run Service"| E["app/services.py"]
+    E -->|"5. Query via models.py"| F[("MySQL Database")]
+    F -->|"6. Rows"| E
+    E -->|"7. Formatted JSON"| B
+    B -->|"8. Response (200 OK)"| A
+```
+
 ## Database Setup & Configuration
 
 ### 1. Create MySQL Database
