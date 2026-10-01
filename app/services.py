@@ -197,6 +197,12 @@ def save_work_item(db: Session, item_data: schemas.WorkItemInput):
         db.commit()
         db.refresh(new_work_item)
         return new_work_item
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not assign work item: Employee with ID {item_data.employee_id} is invalid or has been removed.",
+        )
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(

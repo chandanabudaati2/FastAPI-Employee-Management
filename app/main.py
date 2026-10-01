@@ -166,7 +166,8 @@ def delete_employee(
     "/work_items",
     tags=["Work Items"],
     response_model=schemas.WorkItemDetails,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new work item",
 )
 def add_new_work_item(
     item_data: schemas.WorkItemInput,
