@@ -1,7 +1,8 @@
-from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Integer, String, Text, ForeignKey
 from sqlalchemy.sql import func
 from app.database import Base
-from app.schemas import WorkMode
+from app.schemas import WorkMode, WorkItemStatus, WorkItemPriority
+from sqlalchemy.orm import relationship
 
 
 class Employee(Base):

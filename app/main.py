@@ -1,5 +1,8 @@
 from app import database
-from fastapi import FastAPI, HTTPException, Path, status, Depends, Query
+from app import database
+from app import database
+from app import database
+from fastapi import FastAPI, HTTPException, Path, status, Depends, Query, Response
 from sqlalchemy.orm import Session
 from app import models, schemas, services
 from app.database import engine, get_db
@@ -157,3 +160,16 @@ def delete_employee(
             detail=f"Employee with ID {id} was not found.",
         )
     return {"message": f"Employee with ID {id} was deleted successfully."}
+
+# 8. Add work items
+@app.post(
+    "/work_items",
+    tags=["Work Items"],
+    response_model=schemas.WorkItemDetails,
+    status_code=status.HTTP_201_CREATED
+)
+def add_new_work_item(
+    item_data: schemas.WorkItemInput,
+    db: Session = Depends(get_db)
+):
+    return services.save_work_item(db, item_data)

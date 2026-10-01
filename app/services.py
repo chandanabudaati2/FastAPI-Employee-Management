@@ -168,3 +168,38 @@ def remove_employee(db: Session,emp_id: int):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="A database error occurred while deleting the employee. Please try again later.",
         )
+
+
+# WORK ITEM SERVICES
+# Function to create and assign a new work item to an existing employee
+def save_work_item(db: Session, item_data: schemas.WorkItemInput):
+    # First, check if the employee exists
+    employee = find_employee_by_id(db,item_data.employee_id)
+    if employee is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Employee with ID {item_data.employee_id} not found."
+        )
+    
+    # Create the new WorkItem database instance
+    new_work_item = models.WorkItem(
+        title=item_data.title,
+        description=item_data.description,
+        employee_id=item_data.employee_id,
+        status=item_data.status or models.WorkItemStatus.TODO,
+        priority=item_data.priority or models.WorkItemPriority.MEDIUM,
+        due_date=item_data.due_date,
+    )
+    
+    # Save to database with rollback protection
+    try:
+        db.add(new_work_item)
+        db.commit()
+        db.refresh(new_work_item)
+        return new_work_item
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error occurred while creating work item: {str(e)}",
+        )

@@ -2,7 +2,6 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-
 # Enum for work mode options
 class WorkMode(str, Enum):
     WFH = "WFH"
