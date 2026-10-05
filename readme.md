@@ -433,10 +433,10 @@ DELETE /work-items/1
 
 ## Difficulties Faced & Solutions
 
-  **URL Path Naming Standards:** Initial routes used underscores (`/work_items`) which diverged from REST conventions and project specifications (`/work-items`). Corrected all endpoints to use hyphens consistently.
-  **HTTP 204 Response Body Conflict:** Returning a JSON dictionary (`{"message": ...}`) alongside HTTP `204 No Content` produces warnings and violates HTTP protocol standards. Resolved by returning `Response(status_code=status.HTTP_204_NO_CONTENT)`.
-  **Seamless Relationship Serialization:** Pydantic models typically require manual mapping when embedding related ORM models. By configuring the relationship name on `WorkItem` as `assigned_employee` and enabling `from_attributes=True` on `AssignedEmployee`, FastAPI automatically serializes the nested employee data cleanly.
-  **Preventing Broken Transactions:** Reassigning work items to non-existent employees could result in unhandled foreign key integrity errors. Added explicit validation checks using `find_employee_by_id()` prior to executing updates, paired with `try...except IntegrityError` and `db.rollback()`.
+* **URL Path Naming Standards:** Initial routes used underscores (`/work_items`) which diverged from REST conventions and project specifications (`/work-items`). Corrected all endpoints to use hyphens consistently.
+* **HTTP 204 Response Body Conflict:** Returning a JSON dictionary (`{"message": ...}`) alongside HTTP `204 No Content` produces warnings and violates HTTP protocol standards. Resolved by returning `Response(status_code=status.HTTP_204_NO_CONTENT)`.
+* **Seamless Relationship Serialization:** Pydantic models typically require manual mapping when embedding related ORM models. By configuring the relationship name on `WorkItem` as `assigned_employee` and enabling `from_attributes=True` on `AssignedEmployee`, FastAPI automatically serializes the nested employee data cleanly.
+* **Preventing Broken Transactions:** Reassigning work items to non-existent employees could result in unhandled foreign key integrity errors. Added explicit validation checks using `find_employee_by_id()` prior to executing updates, paired with `try...except IntegrityError` and `db.rollback()`.
 
 
 ### 1. Database Setup, Engine & Connection Issues
