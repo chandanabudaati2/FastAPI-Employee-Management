@@ -267,5 +267,72 @@ def fetch_work_items_paginated(
         "message": message,
     }
 
+# Function to find a single work item by its ID
 def find_work_item_by_id(db:Session,work_item_id:int):
     return db.query(models.WorkItem).filter(models.WorkItem.id == work_item_id).first()
+
+# Function to update work item details or reassign to another employee
+def update_work_item_record(
+    db:Session,
+    work_item_id: int,
+    updated_info: schemas.WorkItemEdit,
+):
+    #check if work_item exists
+    work_item = find_work_item_by_id(db,work_item_id)
+    if not work_item:
+        raise HTTPException(
+            status_code = status.HTTP_404_NOT_FOUND,
+            detail= f"Work Item with ID {work_item_id} not found."
+        )
+
+    #Check if the assigned employee exists
+    employee = find_employee_by_id(db, updated_info.employee_id)
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assigned employee with ID {updated_info.employee_id} not found.",
+        )
+    #if employee exists then check if employee is active or not
+    if not employee.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot assign work item to inactive employee ID {updated_info.employee_id}.",
+        )
+    
+    #Update title if provided
+    if updated_info.title is not None:
+        work_item.title = updated_info.title
+    #Update description if provided
+    if updated_info.description is not None:
+        work_item.description = updated_info.description
+    #Update employee_id if provided
+    if updated_info.employee_id is not None:
+        work_item.employee_id = updated_info.employee_id
+    #Update status if provided
+    if updated_info.status is not None:
+        work_item.status = updated_info.status
+    #Update priority if provided
+    if updated_info.priority is not None:
+        work_item.priority = updated_info.priority
+    #Update due_date if provided
+    if updated_info.due_date is not None:
+        work_item.due_date = updated_info.due_date
+
+    #commit changes to database
+    try:
+        db.commit()
+        db.refresh(work_item)
+        return work_item
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code = status.HTTP_400_BAD_REQUEST,
+            detail = "Error updating work item. Please try again later."
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail = "An unexpected database error occurred while updating the work item. Please try again later."
+        )
+    
