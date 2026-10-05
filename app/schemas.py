@@ -96,6 +96,12 @@ class WorkItemBase(BaseModel):
             raise ValueError("Title cannot be empty or contain only whitespace.")
         return value.strip()
 
+    @field_validator("due_date")
+    @classmethod
+    def validate_due_date_not_in_past(cls, value: date | None):
+        if value is not None and value < date.today():
+            raise ValueError("Due date cannot be in the past.")
+        return value
 
 # POST /work-items input
 class WorkItemInput(WorkItemBase):

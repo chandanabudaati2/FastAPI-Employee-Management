@@ -180,7 +180,11 @@ def save_work_item(db: Session, item_data: schemas.WorkItemInput):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Employee with ID {item_data.employee_id} not found."
         )
-    
+    if not employee.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot assign work item to inactive employee ID {item_data.employee_id}."
+        )
     # Create the new WorkItem database instance
     new_work_item = models.WorkItem(
         title=item_data.title,
@@ -207,5 +211,60 @@ def save_work_item(db: Session, item_data: schemas.WorkItemInput):
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error occurred while creating work item: {str(e)}",
+            detail=f"An unexpected database error occurred. Please try again later.",
         )
+
+def fetch_work_items_paginated( 
+    db: Session, 
+    search: str| None = None,
+    status: schemas.WorkItemStatus| None = None,
+    employee_id: int| None = None,
+    priority: schemas.WorkItemPriority | None = None,
+    limit: int =10,
+    offset: int =0,
+):
+    query = db.query(models.WorkItem)
+
+    # Partial case-insensitive search on workItem title
+    if search and search.strip():
+        query = query.filter(func.lower(models.WorkItem.title).like(f"%{search.strip().lower()}%"))
+
+    #Filter by employee assigned
+    if employee_id is not None:
+        query = query.filter(models.WorkItem.employee_id == employee_id)
+
+    #Filter by Work Item status (TODO, IN_PROGRESS, COMPLETED)
+    if status is not None:
+        query = query.filter(models.WorkItem.status == status)
+
+    #Filter by work item priority (LOW, MEDIUM, HIGH)
+    if priority is not None:
+        query  = query.filter(models.WorkItem.priority == priority)
+
+    #Count total matching records BEFORE applying offset and limit
+    total = query.count()
+
+    #Ascending order by ID, then apply offset and limit in SQL
+    items = (
+        query.order_by(models.WorkItem.id.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    # Contextual message
+    message = None
+    if not items:
+        message = "No work items found matching your criteria."
+    elif search or employee_id is not None or status is not None or priority is not None:
+        message = f"Found {total} work item(s) matching your filters."
+    else:
+        message = "Work items fetched successfully."
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": items,
+        "message": message,
+    }
+
+

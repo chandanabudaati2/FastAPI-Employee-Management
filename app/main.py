@@ -1,11 +1,13 @@
-from app import database
-from app import database
-from app import database
-from app import database
+from sqlalchemy.exc import SQLAlchemyError
 from fastapi import FastAPI, HTTPException, Path, status, Depends, Query, Response
 from sqlalchemy.orm import Session
-from app import models, schemas, services
+from app import models, schemas, services, database
 from app.database import engine, get_db
+from sqlalchemy import text
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -28,12 +30,19 @@ def home():
         "employees": "/employees",
     }
 
-
 # 2. Health check endpoint
 @app.get("/health", tags=["Health"], status_code=status.HTTP_200_OK)
-def check_health():
-    return {"status": "ok", "message": "Employee Management API is working!"}
-
+def check_health(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        logger.info("Database connection successful")
+        return {"status": "ok", "message": "Employee Management API is working!"}
+    except SQLAlchemyError:
+        logger.error("Database connection failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection failed. Please check your database connection.",
+        )
 
 # 3. Create a new employee
 @app.post(
@@ -163,7 +172,7 @@ def delete_employee(
 
 # 8. Add work items
 @app.post(
-    "/work_items",
+    "/work-items",
     tags=["Work Items"],
     response_model=schemas.WorkItemDetails,
     status_code=status.HTTP_201_CREATED,
@@ -174,3 +183,51 @@ def add_new_work_item(
     db: Session = Depends(get_db)
 ):
     return services.save_work_item(db, item_data)
+
+@app.get(
+    "/work-items",
+    tags = ["Work Items"],
+    response_model = schemas.PaginatedWorkItemResponse,
+    status_code=status.HTTP_200_OK
+)
+def get_work_items(
+    search : str | None = Query(
+        None, 
+        title="Work Item Title Search", 
+        description = "Search by work item title"
+    ),
+    employee_id: int | None = Query(
+        None,
+        gt=0,
+        description="Filter work items by employee id",
+    ),
+    status: schemas.WorkItemStatus | None = Query(
+        None,
+        description = ""
+    ),
+    priority: schemas.WorkItemPriority | None = Query(
+        None,
+        description="Filter by work item priority",
+    ),
+    limit: int = Query(
+        10,
+        ge=1,
+        le=100,
+        description="Maximum number of work items to return",
+    ),
+    offset: int = Query(
+        0,
+        ge=0,
+        description="Number of records to skip",
+    ),
+    db: Session = Depends(get_db),
+):
+    return services.fetch_work_items_paginated(
+        db=db,
+        search=search,
+        employee_id=employee_id,
+        status=status,
+        priority=priority,
+        limit=limit,
+        offset=offset,
+    )
