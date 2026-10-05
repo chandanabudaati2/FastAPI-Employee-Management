@@ -335,4 +335,21 @@ def update_work_item_record(
             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail = "An unexpected database error occurred while updating the work item. Please try again later."
         )
-    
+
+# Function to delete a work item by ID
+def remove_work_item(db:Session, work_item_id:int):
+    work_item = find_work_item_by_id(db,work_item_id)
+    # 404 check: If work item does not exist, return False
+    if work_item is None:
+        return False
+    # Database deletion with rollback on unexpected DB errors
+    try:
+        db.delete(work_item)
+        db.commit()
+        return True
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected database error occurred while deleting the work item. Please try again later.",
+        )

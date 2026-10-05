@@ -1,6 +1,6 @@
 from email_validator import validate_email
 from sqlalchemy.exc import SQLAlchemyError
-from fastapi import FastAPI, HTTPException, Path, status, Depends, Query, Response
+from fastapi import FastAPI, HTTPException, Path, status, Depends, Query
 from sqlalchemy.orm import Session
 from app import models, schemas, services, database
 from app.database import engine, get_db
@@ -255,7 +255,7 @@ def get_work_item_by_id(
 
 # 11. Update an existing work item by ID
 @app.put(
-    "/work_items/{work_item_id}",
+    "/work-items/{work_item_id}",
     tags= ["Work Items"],
     response_model=schemas.WorkItemDetails,
     status_code=status.HTTP_200_OK,
@@ -268,4 +268,21 @@ def update_work_item(
 ):
     return services.update_work_item_record(db,work_item_id,updated_info)
 
-    
+# 12. Delete a work item by ID
+@app.delete(
+    "/work-items/{work_item_id}",
+    tags=["Work Items"],
+    status_code=status.HTTP_200_OK,
+    description="Delete a work item by ID",
+)
+def delete_work_item(
+    work_item_id: int = Path(..., gt=0, description="The ID of the work item to delete"),
+    db: Session = Depends(get_db)
+):
+    deleted = services.remove_work_item(db, work_item_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Work item with ID {work_item_id} not found.",
+        )
+    return {"message": f"Work item with ID {work_item_id} deleted successfully."}
