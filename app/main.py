@@ -1,3 +1,4 @@
+from email_validator import validate_email
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import FastAPI, HTTPException, Path, status, Depends, Query, Response
 from sqlalchemy.orm import Session
@@ -231,3 +232,23 @@ def get_work_items(
         limit=limit,
         offset=offset,
     )
+
+# 10. Get a single work _item by ID
+@app.get(
+    "/work-items/{work_item_id}",
+    tags=["Work Items"],
+    response_model=schemas.WorkItemDetails,
+    status_code=status.HTTP_200_OK,
+    description="Get a single work item by ID",
+)
+def get_work_item_by_id(
+    work_item_id: int = Path(..., gt=0, description="The ID of the work item to retrieve"),
+    db: Session = Depends(get_db)
+):
+    work_item = services.find_work_item_by_id(db,work_item_id)
+    if not work_item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Work item with ID {work_item_id} not found",
+        )
+    return work_item

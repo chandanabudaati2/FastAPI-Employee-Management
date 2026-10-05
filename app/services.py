@@ -267,4 +267,5 @@ def fetch_work_items_paginated(
         "message": message,
     }
 
-
+def find_work_item_by_id(db:Session,work_item_id:int):
+    return db.query(models.WorkItem).filter(models.WorkItem.id == work_item_id).first()
