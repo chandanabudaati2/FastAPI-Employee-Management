@@ -302,8 +302,11 @@ def update_work_item_record(
     #Update title if provided
     if updated_info.title is not None:
         work_item.title = updated_info.title
-    #Update description if provided
-    if updated_info.description is not None:
+    #Update description (allows clearing when null/None is explicitly provided)
+    if hasattr(updated_info, "model_fields_set"):
+        if "description" in updated_info.model_fields_set:
+            work_item.description = updated_info.description
+    else:
         work_item.description = updated_info.description
     #Update employee_id if provided
     if updated_info.employee_id is not None:
@@ -314,8 +317,11 @@ def update_work_item_record(
     #Update priority if provided
     if updated_info.priority is not None:
         work_item.priority = updated_info.priority
-    #Update due_date if provided
-    if updated_info.due_date is not None:
+    #Update due_date (allows clearing when null/None is explicitly provided)
+    if hasattr(updated_info, "model_fields_set"):
+        if "due_date" in updated_info.model_fields_set:
+            work_item.due_date = updated_info.due_date
+    else:
         work_item.due_date = updated_info.due_date
 
     #commit changes to database

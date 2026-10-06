@@ -164,7 +164,7 @@ flowchart LR
     E -->|"5. Query via models.py"| F[("MySQL Database")]
     F -->|"6. Rows"| E
     E -->|"7. Formatted JSON"| B
-    B -->|"8. Response (200 / 201 / 204)"| A
+    B -->|"8. Response (200 / 201)"| A
 ```
 
 ---
@@ -427,14 +427,14 @@ DELETE /work-items/1
 4. **Pre-Pagination Total:** The `total` field in `GET /work-items` reflects the total number of matching records before `limit` and `offset` are evaluated.
 5. **Partial Title Search:** The `search` query parameter evaluates against `models.WorkItem.title` using case-insensitive SQL matching (`func.lower()` and `LIKE %...%`).
 6. **Due Date Constraint:** The `due_date` field is an optional date (`YYYY-MM-DD`) that cannot be set in the past.
-7. **HTTP 204 Specification:** Deletion conforms to RFC 9110 by returning `HTTP 204 No Content` with an empty response body.
+7. **Deletion Response:** Deletion returns `HTTP 200 OK` with a confirmation message JSON body (e.g., `{"message": "Work item with ID {work_item_id} deleted successfully."}`).
 
 ---
 
 ## Difficulties Faced & Solutions
 
 * **URL Path Naming Standards:** Initial routes used underscores (`/work_items`) which diverged from REST conventions and project specifications (`/work-items`). Corrected all endpoints to use hyphens consistently.
-* **HTTP 204 Response Body Conflict:** Returning a JSON dictionary (`{"message": ...}`) alongside HTTP `204 No Content` produces warnings and violates HTTP protocol standards. Resolved by returning `Response(status_code=status.HTTP_204_NO_CONTENT)`.
+* **Deletion Response Format Consistency:** Returning a confirmation message dictionary (`{"message": ...}`) requires `HTTP 200 OK` rather than `204 No Content` to adhere to HTTP standards (as 204 responses must not include a body). Configured deletion endpoints to return `HTTP 200 OK` with informative JSON confirmation messages.
 * **Seamless Relationship Serialization:** Pydantic models typically require manual mapping when embedding related ORM models. By configuring the relationship name on `WorkItem` as `assigned_employee` and enabling `from_attributes=True` on `AssignedEmployee`, FastAPI automatically serializes the nested employee data cleanly.
 * **Preventing Broken Transactions:** Reassigning work items to non-existent employees could result in unhandled foreign key integrity errors. Added explicit validation checks using `find_employee_by_id()` prior to executing updates, paired with `try...except IntegrityError` and `db.rollback()`.
 
@@ -494,9 +494,9 @@ DELETE /work-items/1
 * **REST URL Path Naming Inconsistency:**  
   * *Difficulty:* Initial endpoints used underscores (`/work_items`), which conflicted with RESTful conventions and the project specification (`/work-items`).
   * *Solution:* Standardized all routes to use hyphens (`POST /work-items`, `GET /work-items/{id}`, etc.).
-* **HTTP 204 No Content Protocol Conflict:**  
+* **HTTP Status Code for Deletion with Response Body:**  
   * *Difficulty:* Returning a JSON dictionary `{"message": ...}` with status `204` violated RFC 9110 (which mandates that 204 responses must not contain a message body).
-  * *Solution:* Returned `Response(status_code=status.HTTP_204_NO_CONTENT)` with an empty body.
+  * *Solution:* Standardized deletion endpoints to return **`HTTP 200 OK`** with a JSON confirmation message (`{"message": "Work item with ID {work_item_id} deleted successfully."}`), ensuring consistent client feedback and protocol compliance.
 * **Reassignment Validation:**  
   * *Difficulty:* Reassigning a work item to an employee who does not exist or is inactive (`is_active = False`) could cause orphaned or corrupt task allocations.
   * *Solution:* Added pre-commit checks verifying that the target employee exists (returning `404`) and is currently active (returning `400`).

@@ -82,7 +82,7 @@ class AssignedEmployee(BaseModel):
 
 # --- Work Item Base Schema ---
 class WorkItemBase(BaseModel):
-    title: str = Field(..., min_length=1, description="Title of the work item")
+    title: str = Field(..., min_length=1, max_length=255, description="Title of the work item")
     description: str | None = Field(None, description="Detailed description")
     employee_id: int = Field(..., gt=0, description="Assigned employee ID")
     status: WorkItemStatus = Field(default=WorkItemStatus.TODO)
@@ -94,7 +94,10 @@ class WorkItemBase(BaseModel):
     def reject_empty_or_whitespace_title(cls, value: str):
         if not value or not value.strip():
             raise ValueError("Title cannot be empty or contain only whitespace.")
-        return value.strip()
+        stripped = value.strip()
+        if len(stripped) > 255:
+            raise ValueError("Title cannot exceed 255 characters.")
+        return stripped
 
     @field_validator("due_date")
     @classmethod
