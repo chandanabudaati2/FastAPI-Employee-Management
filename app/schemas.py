@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -53,11 +53,6 @@ class PaginatedEmployeeResponse(BaseModel):
     offset: int
     items: list[EmployeeDetails]
     message: str | None = None
-
-from datetime import date, datetime
-from enum import Enum
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-
 
 # --- Enums ---
 class WorkItemStatus(str, Enum):

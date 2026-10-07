@@ -1,4 +1,3 @@
-from email_validator import validate_email
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import FastAPI, HTTPException, Path, status, Depends, Query
 from sqlalchemy.orm import Session
