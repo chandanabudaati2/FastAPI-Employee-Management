@@ -80,7 +80,6 @@ class WorkItemBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Title of the work item")
     description: str | None = Field(None, description="Detailed description")
     employee_id: int = Field(..., gt=0, description="Assigned employee ID")
-    status: WorkItemStatus = Field(default=WorkItemStatus.TODO)
     priority: WorkItemPriority = Field(default=WorkItemPriority.MEDIUM)
     due_date: date | None = Field(None, description="Optional due date (YYYY-MM-DD)")
 
@@ -103,12 +102,17 @@ class WorkItemBase(BaseModel):
 
 # POST /work-items input
 class WorkItemInput(WorkItemBase):
-    pass
+    status: WorkItemStatus = Field(default=WorkItemStatus.TODO)
 
 
 # PUT /work-items/{work_item_id} input
 class WorkItemEdit(WorkItemBase):
-    pass
+    status: WorkItemStatus | None = Field(default=None, description="Optional status update; omitting preserves current value")
+
+
+# PATCH /work-items/{work_item_id}/status input
+class WorkItemStatusUpdate(BaseModel):
+    status: WorkItemStatus = Field(..., description="Target status: TODO, IN_PROGRESS, or COMPLETED")
 
 
 # Response Schema for single work item
@@ -132,3 +136,13 @@ class PaginatedWorkItemResponse(BaseModel):
     offset: int
     items: list[WorkItemDetails]
     message: str | None = None
+
+
+# Response Schema for employee work summary
+class EmployeeWorkSummary(BaseModel):
+    employee_id: int
+    total_work_items: int
+    todo: int
+    in_progress: int
+    completed: int
+

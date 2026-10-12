@@ -1,10 +1,33 @@
 from datetime import datetime
 from app.schemas import EmployeeEdit, EmployeeInput
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 from app import models, schemas
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+
+# Allowed status progression: TODO -> IN_PROGRESS -> COMPLETED
+ALLOWED_STATUS_TRANSITIONS = {
+    schemas.WorkItemStatus.TODO: [schemas.WorkItemStatus.IN_PROGRESS],
+    schemas.WorkItemStatus.IN_PROGRESS: [schemas.WorkItemStatus.COMPLETED],
+    schemas.WorkItemStatus.COMPLETED: [],
+}
+
+
+def validate_status_transition(current_status: schemas.WorkItemStatus, new_status: schemas.WorkItemStatus):
+    """
+    Validate that status transitions strictly follow: TODO -> IN_PROGRESS -> COMPLETED.
+    - If the requested status matches the current status, returns without changing (idempotent / no-op).
+    - If skipped or backward, raises HTTP 400 Bad Request.
+    """
+    if current_status == new_status:
+        return
+    if new_status not in ALLOWED_STATUS_TRANSITIONS.get(current_status, []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status transition from '{current_status.value}' to '{new_status.value}'. Status can only transition in the order: TODO -> IN_PROGRESS -> COMPLETED."
+        )
 
 
 # Helper function to check if email is already taken & case-sensitive
@@ -173,6 +196,13 @@ def remove_employee(db: Session,emp_id: int):
 # WORK ITEM SERVICES
 # Function to create and assign a new work item to an existing employee
 def save_work_item(db: Session, item_data: schemas.WorkItemInput):
+    # Enforce: New work items must start with TODO.
+    if item_data.status and item_data.status != schemas.WorkItemStatus.TODO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"New work items must start with TODO status. Cannot create a work item with status '{item_data.status.value}'."
+        )
+
     # First, check if the employee exists
     employee = find_employee_by_id(db,item_data.employee_id)
     if employee is None:
@@ -185,12 +215,12 @@ def save_work_item(db: Session, item_data: schemas.WorkItemInput):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot assign work item to inactive employee ID {item_data.employee_id}."
         )
-    # Create the new WorkItem database instance
+    # Create the new WorkItem database instance with default TODO
     new_work_item = models.WorkItem(
         title=item_data.title,
         description=item_data.description,
         employee_id=item_data.employee_id,
-        status=item_data.status or models.WorkItemStatus.TODO,
+        status=models.WorkItemStatus.TODO,
         priority=item_data.priority or models.WorkItemPriority.MEDIUM,
         due_date=item_data.due_date,
     )
@@ -213,6 +243,7 @@ def save_work_item(db: Session, item_data: schemas.WorkItemInput):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected database error occurred. Please try again later.",
         )
+
 
 def fetch_work_items_paginated( 
     db: Session, 
@@ -292,39 +323,43 @@ def update_work_item_record(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Assigned employee with ID {updated_info.employee_id} not found.",
         )
-    #if employee exists then check if employee is active or not
+    # Check if employee exists then check if employee is active or not
     if not employee.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot assign work item to inactive employee ID {updated_info.employee_id}.",
         )
+
+    # If status is supplied in PUT, validate transition rules before saving any changes
+    if updated_info.status is not None:
+        validate_status_transition(work_item.status, updated_info.status)
     
-    #Update title if provided
+    # Update title if provided
     if updated_info.title is not None:
         work_item.title = updated_info.title
-    #Update description (allows clearing when null/None is explicitly provided)
+    # Update description (allows clearing when null/None is explicitly provided)
     if hasattr(updated_info, "model_fields_set"):
         if "description" in updated_info.model_fields_set:
             work_item.description = updated_info.description
     else:
         work_item.description = updated_info.description
-    #Update employee_id if provided
+    # Update employee_id if provided
     if updated_info.employee_id is not None:
         work_item.employee_id = updated_info.employee_id
-    #Update status if provided
+    # Update status if provided (omitting preserves current value)
     if updated_info.status is not None:
         work_item.status = updated_info.status
-    #Update priority if provided
+    # Update priority if provided
     if updated_info.priority is not None:
         work_item.priority = updated_info.priority
-    #Update due_date (allows clearing when null/None is explicitly provided)
+    # Update due_date (allows clearing when null/None is explicitly provided)
     if hasattr(updated_info, "model_fields_set"):
         if "due_date" in updated_info.model_fields_set:
             work_item.due_date = updated_info.due_date
     else:
         work_item.due_date = updated_info.due_date
 
-    #commit changes to database
+    # commit changes to database
     try:
         db.commit()
         db.refresh(work_item)
@@ -359,3 +394,64 @@ def remove_work_item(db:Session, work_item_id:int):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected database error occurred while deleting the work item. Please try again later.",
         )
+
+
+# Function to update work item status via PATCH /work-items/{work_item_id}/status
+def update_work_item_status(db: Session, work_item_id: int, new_status: schemas.WorkItemStatus):
+    work_item = find_work_item_by_id(db, work_item_id)
+    if not work_item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Work item with ID {work_item_id} not found."
+        )
+
+    # Validate transition rules (TODO -> IN_PROGRESS -> COMPLETED)
+    validate_status_transition(work_item.status, new_status)
+
+    # If the requested status is identical, return without changing (idempotent / no-op)
+    if work_item.status != new_status:
+        work_item.status = new_status
+        try:
+            db.commit()
+            db.refresh(work_item)
+        except SQLAlchemyError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An unexpected database error occurred while updating work item status. Please try again later."
+            )
+
+    return work_item
+
+
+# Function to get employee work summary via GET /employees/{employee_id}/work-summary
+def get_employee_work_summary(db: Session, employee_id: int):
+    # Verify employee exists (404 if not found)
+    emp = find_employee_by_id(db, employee_id)
+    if not emp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Employee with ID {employee_id} not found."
+        )
+
+    # Count work items currently assigned to the employee using SQLAlchemy
+    summary = db.query(
+        func.count(models.WorkItem.id).label("total"),
+        func.count(case((models.WorkItem.status == models.WorkItemStatus.TODO, models.WorkItem.id))).label("todo"),
+        func.count(case((models.WorkItem.status == models.WorkItemStatus.IN_PROGRESS, models.WorkItem.id))).label("in_progress"),
+        func.count(case((models.WorkItem.status == models.WorkItemStatus.COMPLETED, models.WorkItem.id))).label("completed"),
+    ).filter(models.WorkItem.employee_id == employee_id).first()
+
+    total = (summary.total or 0) if summary else 0
+    todo = (summary.todo or 0) if summary else 0
+    in_progress = (summary.in_progress or 0) if summary else 0
+    completed = (summary.completed or 0) if summary else 0
+
+    return {
+        "employee_id": employee_id,
+        "total_work_items": total,
+        "todo": todo,
+        "in_progress": in_progress,
+        "completed": completed,
+    }
+

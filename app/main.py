@@ -285,3 +285,36 @@ def delete_work_item(
             detail=f"Work item with ID {work_item_id} not found.",
         )
     return {"message": f"Work item with ID {work_item_id} deleted successfully."}
+
+
+# 13. Update work item status
+@app.patch(
+    "/work-items/{work_item_id}/status",
+    tags=["Work Items"],
+    response_model=schemas.WorkItemDetails,
+    status_code=status.HTTP_200_OK,
+    summary="Update work item status",
+    description="Update work item status adhering strictly to TODO -> IN_PROGRESS -> COMPLETED order.",
+)
+def update_work_item_status(
+    status_data: schemas.WorkItemStatusUpdate,
+    work_item_id: int = Path(..., gt=0, description="The ID of the work item to update status"),
+    db: Session = Depends(get_db),
+):
+    return services.update_work_item_status(db, work_item_id, status_data.status)
+
+
+# 14. Get employee work summary
+@app.get(
+    "/employees/{employee_id}/work-summary",
+    tags=["Employees"],
+    response_model=schemas.EmployeeWorkSummary,
+    status_code=status.HTTP_200_OK,
+    summary="Get employee work summary",
+    description="Retrieve total work items and status breakdown (todo, in_progress, completed) for an employee.",
+)
+def get_employee_work_summary(
+    employee_id: int = Path(..., gt=0, description="The ID of the employee"),
+    db: Session = Depends(get_db),
+):
+    return services.get_employee_work_summary(db, employee_id)
