@@ -31,6 +31,7 @@ FastAPI-EmpManagement/
 ├── Screenshots_Task2/    # Task 2 test screenshots
 ├── Screenshots_Task3/    # Task 3 test screenshots
 ├── Screenshots_Task_4/   # Task 4 Swagger UI test screenshots
+├── Screenshots_Task5/    # Task 5 Swagger UI test screenshots
 ├── .env.example          # Environment template
 ├── .gitignore
 ├── requirements.txt
@@ -79,28 +80,33 @@ The project follows a **layered separation-of-concerns** architecture where each
 * **Input Sanitization & Custom Validators:**
   * `@field_validator` rejects empty or whitespace-only strings for text fields and titles.
   * `@field_validator("due_date")` ensures due dates cannot be set in the past.
-* **Employee Schemas:** `EmployeeInput`, `EmployeeEdit`, `EmployeeDetails`, `PaginatedEmployeeResponse`.
+* **Employee Schemas:** `EmployeeInput`, `EmployeeEdit`, `EmployeeDetails`, `PaginatedEmployeeResponse`, `EmployeeWorkSummary`.
 * **Work Item Schemas:**
   * `AssignedEmployee`: Lightweight DTO (`id`, `name`, `email`) included inside every work item response.
-  * `WorkItemInput`: Validates payload for creating and assigning a work item (`POST /work-items`).
-  * `WorkItemEdit`: Validates payload for updating details or reassigning a work item (`PUT /work-items/{id}`).
+  * `WorkItemInput`: Validates payload for creating a work item (`POST /work-items`), enforcing starting status of `TODO`.
+  * `WorkItemEdit`: Validates payload for updating details or reassigning a work item (`PUT /work-items/{id}`), with optional `status` to preserve existing state if omitted.
+  * `WorkItemStatusUpdate`: Validates the single required `status` field for `PATCH /work-items/{id}/status`.
   * `WorkItemDetails`: Serializes a single work item with nested `assigned_employee` via `from_attributes=True`.
   * `PaginatedWorkItemResponse`: Wraps work item lists into an envelope with metadata (`total`, `limit`, `offset`, `items`, and `message`).
+  * `EmployeeWorkSummary`: Standardizes the response for `GET /employees/{id}/work-summary` (`total_work_items`, `todo`, `in_progress`, `completed`).
 
 ### 4. `app/services.py` — Business Logic & Database Queries
 * **Decoupled Business Logic:** Encapsulates all database queries and transactions, keeping route handlers lean and focused solely on HTTP handling.
-* **Employee Management:** Duplicate email checks, paginated queries, find by ID, update, and safe deletion with conflict checks.
+* **Employee Management:** Duplicate email checks, paginated queries, find by ID, update, safe deletion with conflict checks, and work summary aggregation.
 * **Work Item Management:**
-  * `save_work_item`: Validates assignee exists and is active before creating a work item.
+  * `save_work_item`: Validates assignee exists and is active; enforces `TODO` as the mandatory starting status.
+  * `validate_status_transition`: Reusable business rule enforcing the strict progression: `TODO → IN_PROGRESS → COMPLETED`. Allows identical status as a no-op (200), and rejects backward or skipped transitions with 400.
+  * `update_work_item_status`: Dedicated handler for `PATCH /work-items/{id}/status` with transition validation.
   * `fetch_work_items_paginated`: Executes dynamic SQL filtering (title search, employee, status, priority), pre-pagination count, ascending ordering by ID, and SQL-level limit/offset.
   * `find_work_item_by_id`: Retrieves a single work item by ID.
-  * `update_work_item_record`: Validates work item and new assignee existence and active status before updating fields.
+  * `update_work_item_record`: Validates work item and assignee; validates status transition rules before mutating any fields; preserves status if omitted.
   * `remove_work_item`: Deletes work item record safely with transaction rollback.
+  * `get_employee_work_summary`: Aggregates work item counts by status (`func.count`, `case`) directly in SQL for a given employee.
 
 ### 5. `app/main.py` — FastAPI Routing & Controllers
 * **Application Entry Point:** Configures the FastAPI app instance, metadata, and auto-generates interactive Swagger UI docs at `/docs`.
 * **Automatic Table Creation:** Calls `models.Base.metadata.create_all(bind=engine)` on startup to ensure database schemas exist.
-* **Endpoint Routing:** RESTful endpoints for health check, employee CRUD, and work item CRUD.
+* **Endpoint Routing:** RESTful endpoints for health check, employee CRUD, work item CRUD, status transition PATCH, and employee work summary GET.
 * **Input Constraints:** Enforces path constraints (`id > 0`, `work_item_id > 0`) and query parameters (`limit: 1–100`, `offset >= 0`, `employee_id > 0`).
 
 ---
@@ -224,10 +230,12 @@ DATABASE_NAME=employee_db
 | `GET` | `/employees/{id}` | Get employee by ID | `200`, `404`, `422` |
 | `PUT` | `/employees/{id}` | Update employee details | `200`, `400`, `404`, `422` |
 | `DELETE` | `/employees/{id}` | Delete employee (protected by FK constraint) | `200`, `404`, `409`, `422` |
-| `POST` | `/work-items` | Create and assign a work item to an employee | `201`, `400`, `404`, `422` |
+| `GET` | `/employees/{employee_id}/work-summary` | Get employee task count and status breakdown | `200`, `404`, `422` |
+| `POST` | `/work-items` | Create and assign a work item (must start with `TODO`) | `201`, `400`, `404`, `422` |
 | `GET` | `/work-items` | List work items (with search, filters & pagination) | `200`, `422` |
 | `GET` | `/work-items/{work_item_id}` | Get single work item by ID | `200`, `404`, `422` |
-| `PUT` | `/work-items/{work_item_id}` | Update work item details or reassign employee | `200`, `400`, `404`, `422` |
+| `PUT` | `/work-items/{work_item_id}` | Update work item details (preserves status if omitted) | `200`, `400`, `404`, `422` |
+| `PATCH` | `/work-items/{work_item_id}/status` | Update work item status (`TODO → IN_PROGRESS → COMPLETED`) | `200`, `400`, `404`, `422` |
 | `DELETE` | `/work-items/{work_item_id}` | Delete work item | `200`, `404`, `422` |
 
 ---
@@ -236,7 +244,10 @@ DATABASE_NAME=employee_db
 
 ### 1. Create and Assign Work Item (`POST /work-items`)
 * **Status:** `201 Created`
-* **Validation:** Assignee employee must exist in the database and must be active (`is_active = True`). Title must not be blank or whitespace.
+* **Validation:** 
+  * Assignee employee must exist in the database and must be active (`is_active = True`).
+  * Title must not be blank or whitespace.
+  * **Status Rule:** New work items **must start with `TODO`**. If `status` is omitted, it automatically defaults to `TODO`. Supplying `IN_PROGRESS` or `COMPLETED` during creation is rejected with `400 Bad Request`.
 
 #### Sample Request Body:
 ```json
@@ -348,7 +359,11 @@ GET /work-items/1
 
 ### 4. Update Work Item or Reassign (`PUT /work-items/{work_item_id}`)
 * **Status:** `200 OK`
-* **Validation:** Work item must exist (otherwise `404`). If reassigning to another `employee_id`, target employee must exist (otherwise `404`) and must be active (otherwise `400`).
+* **Validation:** 
+  * Work item must exist (otherwise `404`).
+  * If reassigning to another `employee_id`, target employee must exist (otherwise `404`) and must be active (otherwise `400`).
+  * **Status Preservation:** Omitting `status` during a PUT update preserves its existing database value.
+  * **Status Transition Rules:** If `status` is provided, it must strictly follow `TODO → IN_PROGRESS → COMPLETED`. Any disallowed or backward change rejects the **entire** update with `400 Bad Request` without saving any other changes.
 
 #### Sample Request Body:
 ```json
@@ -402,13 +417,121 @@ DELETE /work-items/1
 
 ---
 
+### 6. Update Work Item Status (`PATCH /work-items/{work_item_id}/status`)
+* **Status:** `200 OK`
+* **Purpose:** Provides a lightweight endpoint to update only the `status` of an existing work item without resending the entire work item payload.
+* **Strict Status Transition Order:**
+  ```text
+  ┌──────┐      ┌─────────────┐      ┌───────────┐
+  │ TODO │ ───> │ IN_PROGRESS │ ───> │ COMPLETED │
+  └──────┘      └─────────────┘      └───────────┘
+  ```
+* **Status Progression Rules:**
+  1. **New Items Start in `TODO`:** Every work item starts in `TODO`. If `IN_PROGRESS` or `COMPLETED` is supplied during creation (`POST`), the request is rejected with `400 Bad Request`.
+  2. **Forward Transitions Only:** 
+     * `TODO` can move to `IN_PROGRESS`.
+     * `IN_PROGRESS` can move to `COMPLETED`.
+  3. **Disallowed Transitions:**
+     * **Skipped transitions** (e.g., `TODO → COMPLETED`) are rejected with `400 Bad Request`.
+     * **Backward transitions** (e.g., `COMPLETED → IN_PROGRESS`, `IN_PROGRESS → TODO`, `COMPLETED → TODO`) are rejected with `400 Bad Request`.
+  4. **Idempotent / Same Status:** If the requested status is identical to the item's current status (e.g., `IN_PROGRESS → IN_PROGRESS`), the API returns `200 OK` with the record unchanged.
+  5. **Not Found (`404`):** Returns `404 Not Found` when the work item does not exist.
+  6. **Validation Error (`422`):** Returns `422 Unprocessable Content` if `status` is missing, null, or has an invalid enum value.
+  7. **Same Rules on `PUT`:** The exact same transition rules apply when `status` is updated via `PUT /work-items/{id}`. Omitting `status` in PUT keeps its current value; a disallowed status change rejects the entire update with `400` without saving any other fields.
+
+#### Sample Request (`PATCH /work-items/1/status`):
+```json
+{
+  "status": "IN_PROGRESS"
+}
+```
+
+#### Sample Success Response (`200 OK`):
+```json
+{
+  "id": 1,
+  "title": "Prepare weekly status report",
+  "description": "Consolidate sprint progress and blockers for leadership sync",
+  "employee_id": 1,
+  "status": "IN_PROGRESS",
+  "priority": "MEDIUM",
+  "due_date": "2026-10-15",
+  "created_at": "2026-10-05T14:30:00",
+  "assigned_employee": {
+    "id": 1,
+    "name": "Alice Smith",
+    "email": "alice.smith@example.com"
+  }
+}
+```
+
+#### Sample Disallowed Transition Response (`400 Bad Request`):
+```json
+{
+  "detail": "Invalid status transition from 'TODO' to 'COMPLETED'. Status can only transition in the order: TODO -> IN_PROGRESS -> COMPLETED."
+}
+```
+
+---
+
+### 7. Get Employee Work Summary (`GET /employees/{employee_id}/work-summary`)
+* **Status:** `200 OK`
+* **Purpose:** Summarizes the current workload and status breakdown for a given employee.
+* **Requirements & Implementation Details:**
+  * **Database-Level Calculation:** All counts are calculated directly in MySQL using SQLAlchemy aggregation (`func.count`, `case`).
+  * **Accurate Filtering:** Only work items currently assigned to the given `employee_id` are included.
+  * **Consistent Totals:** The three status counts strictly add up to `total_work_items` (`todo + in_progress + completed == total_work_items`).
+  * **Zero Counts:** If the employee exists in the database but currently has no assigned work items, the endpoint returns zeros for all count fields (`200 OK`).
+  * **Not Found (`404`):** Returns `404 Not Found` if the requested `employee_id` does not exist in the database.
+  * **Excludes Deleted Items:** Deleted work items are permanently removed and never counted.
+
+#### Sample Request:
+```http
+GET /employees/1/work-summary
+```
+
+#### Sample Response (`200 OK` - With Work Items):
+```json
+{
+  "employee_id": 1,
+  "total_work_items": 5,
+  "todo": 2,
+  "in_progress": 2,
+  "completed": 1
+}
+```
+
+#### Sample Response (`200 OK` - Employee with Zero Assigned Work Items):
+```json
+{
+  "employee_id": 3,
+  "total_work_items": 0,
+  "todo": 0,
+  "in_progress": 0,
+  "completed": 0
+}
+```
+
+#### Sample Error Response (`404 Not Found` - Non-existent Employee):
+```json
+{
+  "detail": "Employee with ID 999 not found."
+}
+```
+
+---
+
 ## Validation & Error Handling
 
 | Scenario | HTTP Status | Error Message / Behavior |
 |---|---|---|
 | **Non-existent Work Item** | `404 Not Found` | `{"detail": "Work item with ID {id} not found"}` |
-| **Non-existent Employee (Assign / Reassign)** | `404 Not Found` | `{"detail": "Employee with ID {employee_id} not found."}` |
+| **Non-existent Employee (Assign / Reassign / Summary)** | `404 Not Found` | `{"detail": "Employee with ID {employee_id} not found."}` |
 | **Assigning to Inactive Employee** | `400 Bad Request` | `{"detail": "Cannot assign work item to inactive employee ID {id}."}` |
+| **New Work Item Created with Non-TODO Status** | `400 Bad Request` | `{"detail": "New work items must start with TODO status. Cannot create a work item with status '{status}'."}` |
+| **Skipped or Backward Status Transition (PATCH / PUT)** | `400 Bad Request` | `{"detail": "Invalid status transition from '{curr}' to '{next}'. Status can only transition in the order: TODO -> IN_PROGRESS -> COMPLETED."}` |
+| **Identical Status Sent (Idempotent Request)** | `200 OK` | Returns current work item details without making modifications |
+| **Missing or Null Status in PATCH** | `422 Unprocessable Content` | `{"detail": [{"msg": "Field required"}]}` or `{"detail": [{"msg": "Input should be 'TODO', 'IN_PROGRESS' or 'COMPLETED'"}]}` |
 | **Deleting Employee with Active Work Items** | `409 Conflict` | `{"detail": "Cannot delete employee with ID {id} because they have related records in the database."}` |
 | **Blank or Whitespace-only Title** | `422 Unprocessable Content` | `{"detail": [{"msg": "Value error, Title cannot be empty or contain only whitespace."}]}` |
 | **Invalid Status or Priority Value** | `422 Unprocessable Content` | `{"detail": [{"msg": "Input should be 'TODO', 'IN_PROGRESS' or 'COMPLETED'"}]}` |
@@ -500,3 +623,19 @@ DELETE /work-items/1
 * **Reassignment Validation:**  
   * *Difficulty:* Reassigning a work item to an employee who does not exist or is inactive (`is_active = False`) could cause orphaned or corrupt task allocations.
   * *Solution:* Added pre-commit checks verifying that the target employee exists (returning `404`) and is currently active (returning `400`).
+
+---
+
+### 5. Work Item Status Progression & Employee Work Summary (Task 5)
+* **Forward-Only Progression Enforcement (`TODO → IN_PROGRESS → COMPLETED`):**
+  * *Difficulty:* Preventing skipped transitions (e.g. `TODO → COMPLETED`) and backward changes across `POST`, `PUT`, and `PATCH`.
+  * *Solution:* Centralized the transition logic in `validate_status_transition()` in the service layer using a dictionary of allowed transitions. If the requested status matches the current status, it returns cleanly as an idempotent `200 OK`; otherwise, invalid transitions immediately raise `400 Bad Request`.
+* **Atomic Rollback on Invalid PUT Status Changes:**
+  * *Difficulty:* If a `PUT` update modifies the title or description but specifies an invalid status transition, saving the valid fields would violate business requirements.
+  * *Solution:* Executed `validate_status_transition()` *before* mutating any attributes on the work item instance, ensuring disallowed status changes reject the entire update without saving any partial modifications.
+* **Preserving Status on Omission during PUT:**
+  * *Difficulty:* In initial designs, `WorkItemBase` had a default status of `TODO`, which caused any PUT update omitting `status` to reset an `IN_PROGRESS` or `COMPLETED` item back to `TODO`.
+  * *Solution:* Defined `WorkItemEdit` with `status: WorkItemStatus | None = Field(default=None)`. If `status` is omitted or `None`, the service retains the existing database status.
+* **Single-Query Work Summary Aggregation via SQLAlchemy:**
+  * *Difficulty:* Computing total, todo, in-progress, and completed counts with separate SQL queries leads to multiple database trips and possible race conditions.
+  * *Solution:* Utilized a single SQLAlchemy query combining `func.count(models.WorkItem.id)` with conditional `case()` statements for each status (`TODO`, `IN_PROGRESS`, `COMPLETED`), returning accurate counts in a single database round-trip.
