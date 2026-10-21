@@ -109,6 +109,13 @@ class WorkItemInput(WorkItemBase):
 class WorkItemEdit(WorkItemBase):
     status: WorkItemStatus | None = Field(default=None, description="Optional status update; omitting preserves current value")
 
+    @field_validator("status")
+    @classmethod
+    def reject_null_status(cls, value: WorkItemStatus | None):
+        if value is None:
+            raise ValueError("Status cannot be null. Omit the field if you do not want to change it.")
+        return value
+
 
 # PATCH /work-items/{work_item_id}/status input
 class WorkItemStatusUpdate(BaseModel):

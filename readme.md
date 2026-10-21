@@ -175,6 +175,21 @@ flowchart LR
 
 ---
 
+## Repository Setup & Branch Checkout
+
+1. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/chandanabudaati2/FastAPI-Employee-Management.git
+   cd FastAPI-Employee-Management
+   ```
+
+2. **Checkout the Task 5 Branch:**
+   ```bash
+   git checkout task-5
+   ```
+
+---
+
 ## Database Setup & Configuration
 
 ### 1. Create MySQL Database
@@ -363,6 +378,7 @@ GET /work-items/1
   * Work item must exist (otherwise `404`).
   * If reassigning to another `employee_id`, target employee must exist (otherwise `404`) and must be active (otherwise `400`).
   * **Status Preservation:** Omitting `status` during a PUT update preserves its existing database value.
+  * **Null Status Rejection (`422`):** Explicitly passing `"status": null` is rejected with **`422 Unprocessable Content`**. Only leaving `status` completely out of the payload preserves the current value.
   * **Status Transition Rules:** If `status` is provided, it must strictly follow `TODO → IN_PROGRESS → COMPLETED`. Any disallowed or backward change rejects the **entire** update with `400 Bad Request` without saving any other changes.
 
 #### Sample Request Body:
@@ -532,6 +548,7 @@ GET /employees/1/work-summary
 | **Skipped or Backward Status Transition (PATCH / PUT)** | `400 Bad Request` | `{"detail": "Invalid status transition from '{curr}' to '{next}'. Status can only transition in the order: TODO -> IN_PROGRESS -> COMPLETED."}` |
 | **Identical Status Sent (Idempotent Request)** | `200 OK` | Returns current work item details without making modifications |
 | **Missing or Null Status in PATCH** | `422 Unprocessable Content` | `{"detail": [{"msg": "Field required"}]}` or `{"detail": [{"msg": "Input should be 'TODO', 'IN_PROGRESS' or 'COMPLETED'"}]}` |
+| **Null Status in PUT (`"status": null`)** | `422 Unprocessable Content` | `{"detail": [{"msg": "Value error, Status cannot be null. Omit the field if you do not want to change it."}]}` |
 | **Deleting Employee with Active Work Items** | `409 Conflict` | `{"detail": "Cannot delete employee with ID {id} because they have related records in the database."}` |
 | **Blank or Whitespace-only Title** | `422 Unprocessable Content` | `{"detail": [{"msg": "Value error, Title cannot be empty or contain only whitespace."}]}` |
 | **Invalid Status or Priority Value** | `422 Unprocessable Content` | `{"detail": [{"msg": "Input should be 'TODO', 'IN_PROGRESS' or 'COMPLETED'"}]}` |
